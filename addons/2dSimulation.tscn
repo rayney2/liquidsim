@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://dna5iq8y6s81b"]
+
+[ext_resource type="Script" path="res://Fluid.cs" id="1_6f7li"]
+
+[node name="Node2D" type="Node2D"]
+position = Vector2(551, 320)
+script = ExtResource("1_6f7li")
