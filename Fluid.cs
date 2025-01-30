@@ -6,13 +6,15 @@ using System.Runtime.InteropServices;
 
 public partial class Fluid : Node2D
 {	
-	public float gravity = 98f;
-	Vector2 pPosition;
-	Vector2 pVelocity;
+	private float gravity = 98f;
+	private int particleCount = 100;
+	private Vector2[] pPositions;
+	private Vector2[] pVelocities;
 	private Rect2 boundingBox;
-	float boxMargin = .8f;
-	int pSize = 5;
-	float damping = .6f;
+	private float boxMargin = .8f;
+	private int pSize = 5;
+	private int particleSpacing = 2;
+	private float damping = .6f;
 	
 	public static class Predef
 	{
@@ -23,37 +25,65 @@ public partial class Fluid : Node2D
 	
 	public override void _Draw()
 	{
-		DrawCircle(pPosition, pSize, Predef.blue);
+		
 		DrawRect(boundingBox, Colors.White, false, 2);
-	
+		
+		for(int i = 0; i< pPositions.Length; i++){
+			
+			DrawCircle(pPositions[i], pSize, Predef.blue);
+		}
+		
 	}
+	
 	
 	
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
+		//position node in center
 		Rect2 viewport = GetViewportRect();
-		Position = viewport.Size / 2;
+		Position = viewport.Size / 2;  
+		//Create particle arrays depending on particleCount
+		//Place the particles in a grid with spacing
+		
+		pPositions = new Vector2[particleCount];
+		pVelocities = new Vector2[particleCount];
+		
+		int rowsParticles = (int)Math.Sqrt(particleCount);
+		int colsParticles = (particleCount / rowsParticles) + ((particleCount % rowsParticles != 0) ? 1 : 0);
+		float spacing = pSize * 2 + particleSpacing;
+		
+		for (int i = 0; i < particleCount; i++) {
+			float x = (i % rowsParticles - rowsParticles / 2f + 0.5f) * spacing;
+			float y = (i / colsParticles - colsParticles / 2f + 0.5f) * spacing;
+			pPositions[i] = new Vector2(x,y);
+		}
+		
+		// 
+		
 		//set dimensions of bounding box 
 		boundingBox = new Rect2(
 			(viewport.Position - (viewport.Size /2)) * boxMargin,
 			viewport.Size * boxMargin
 		);
-		//draw bounding box
-		//pass bounding box to resolve collisions
+		
 	}
 	
 
 	// Called every frame. 'delta' is the elapsed time since the previous frame.
 	public override void _Process(double delta)
 	{
-		pVelocity.Y += gravity * (float)delta;
-		pPosition += pVelocity * (float)delta;
-		ResolveCollisions();
+		for(int i = 0; i < pPositions.Length; i++) {
+			//simulating gravity
+			pVelocities[i].Y += gravity * (float)delta;
+			pPositions[i] += pVelocities[i] * (float)delta;
+			ResolveCollisions(ref pPositions[i], ref pVelocities[i]);
+			
+		}
 		QueueRedraw();
 	}
 	
-	public void ResolveCollisions()
+	public void ResolveCollisions(ref Vector2 pPosition, ref Vector2 pVelocity)
 	{
 		Vector2 halfBounds = boundingBox.Size / 2 - new Vector2(1, 1) * pSize;
 		//if position x or y is touches border make velocity negative
