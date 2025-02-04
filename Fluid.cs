@@ -15,6 +15,10 @@ public partial class Fluid : Node2D
 	private int pSize = 5;
 	private int particleSpacing = 2;
 	private float damping = .6f;
+	private float smoothingRadius = 150f;
+	
+	private Vector2 densityPoint; 
+	private Label densityLabel;   
 	
 	public static class Predef
 	{
@@ -32,10 +36,42 @@ public partial class Fluid : Node2D
 			
 			DrawCircle(pPositions[i], pSize, Predef.blue);
 		}
+		DrawCircle(densityPoint, 5, Colors.Red);
 		
+	}
+	public static float SmoothingKernel(float radius, float distance)
+	{
+	//returns smoothed value based on smoothing kernel implementation
+	//float normalization =  40 / (7 * (float)Math.PI * radius * radius);
+	float normDist = distance / radius;
+	float value = 0;
+	if (0 <= normDist && normDist <= 0.5f) {
+		value = 6 *(normDist * normDist * normDist - normDist * normDist) + 1;
+	}
+	else if (0.5f < normDist && normDist <= 1){
+		value = (2 * (float)Math.Pow(1-normDist, 3));
+	}
+	else {
+		value =  0;
+	}
+	return value;
 	}
 	
 	
+	float Density(Vector2 point)
+	{
+		float density = 0;
+		const float mass = 1;
+		//density is a measure of a certain point
+		//iterate through all particles, and determine their in distance to that point, and influence at that location
+		//add to desnity by mass * influence
+		foreach (Vector2 position in pPositions) {
+			float distance = position.DistanceTo(point);
+			float influence = SmoothingKernel(smoothingRadius, distance);
+			density += mass * influence;
+		}
+		return density;
+	}
 	
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
@@ -66,6 +102,16 @@ public partial class Fluid : Node2D
 			(viewport.Position - (viewport.Size /2)) * boxMargin,
 			viewport.Size * boxMargin
 		);
+		// Initialize density measurement point
+		densityPoint = new Vector2(0, 0); 
+
+		// Create UI Label to display density
+		densityLabel = new Label();
+		densityLabel.AddThemeFontSizeOverride("font_size", 24);
+		densityLabel.SetPosition(densityPoint + new Vector2(10, -20));
+		densityLabel.Modulate = Colors.White;
+		AddChild(densityLabel);
+		
 		
 	}
 	
@@ -80,6 +126,11 @@ public partial class Fluid : Node2D
 			ResolveCollisions(ref pPositions[i], ref pVelocities[i]);
 			
 		}
+		
+		float densityValue = Density(densityPoint);
+		densityLabel.Text = $"ρ: {densityValue:F2}";
+		densityLabel.SetPosition(densityPoint + new Vector2(10, -20));
+
 		QueueRedraw();
 	}
 	
