@@ -7,15 +7,15 @@ using System.Runtime.InteropServices;
 public partial class Fluid : Node2D
 {	
 	private float gravity = 98f;
-	private int particleCount = 100;
+	private int particleCount = 250;
 	private Vector2[] pPositions;
 	private Vector2[] pVelocities;
 	private Rect2 boundingBox;
 	private float boxMargin = .8f;
 	private int pSize = 5;
 	private int particleSpacing = 2;
-	private float damping = .6f;
-	private float smoothingRadius = 150f;
+	private float damping = .5f;
+	private float smoothingRadius = 50f;
 	
 	private Vector2 densityPoint; 
 	private Label densityLabel;   
@@ -37,31 +37,33 @@ public partial class Fluid : Node2D
 			DrawCircle(pPositions[i], pSize, Predef.blue);
 		}
 		DrawCircle(densityPoint, 5, Colors.Red);
-		
+		DrawCircle(densityPoint, smoothingRadius, new Color(1, 0, 0, 0.3f));
 	}
 	public static float SmoothingKernel(float radius, float distance)
 	{
+	
 	//returns smoothed value based on smoothing kernel implementation
-	//float normalization =  40 / (7 * (float)Math.PI * radius * radius);
+	float normalization =  40f / (7f * (float)Math.PI * radius * radius);
 	float normDist = distance / radius;
 	float value = 0;
 	if (0 <= normDist && normDist <= 0.5f) {
-		value = 6 *(normDist * normDist * normDist - normDist * normDist) + 1;
+		value = ((6f*(normDist * normDist * normDist) - 6f*(normDist * normDist)) + 1f) * normalization;
 	}
 	else if (0.5f < normDist && normDist <= 1){
-		value = (2 * (float)Math.Pow(1-normDist, 3));
+		value = (2 * (float)Math.Pow(1-normDist, 3)) * normalization;
 	}
 	else {
 		value =  0;
 	}
 	return value;
+	
 	}
 	
 	
 	float Density(Vector2 point)
 	{
 		float density = 0;
-		const float mass = 1;
+		const float mass = 1000;
 		//density is a measure of a certain point
 		//iterate through all particles, and determine their in distance to that point, and influence at that location
 		//add to desnity by mass * influence
@@ -91,7 +93,7 @@ public partial class Fluid : Node2D
 		
 		for (int i = 0; i < particleCount; i++) {
 			float x = (i % rowsParticles - rowsParticles / 2f + 0.5f) * spacing;
-			float y = (i / colsParticles - colsParticles / 2f + 0.5f) * spacing;
+			float y = (i / rowsParticles - colsParticles / 2f + 0.5f) * spacing;
 			pPositions[i] = new Vector2(x,y);
 		}
 		
