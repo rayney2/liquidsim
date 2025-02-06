@@ -15,7 +15,8 @@ public partial class Fluid : Node2D
 	private int pSize = 5;
 	private int particleSpacing = 2;
 	private float damping = .5f;
-	private float smoothingRadius = 50f;
+	//approx 4x particle size
+	private float smoothingRadius = 20f;
 	
 	private Vector2 densityPoint; 
 	private Label densityLabel;   
@@ -59,6 +60,32 @@ public partial class Fluid : Node2D
 	
 	}
 	
+	public static Vector2 SmoothKernelGrad(float radius, Vector2 r)
+	{
+		float distance = r.Length();
+		float normalization =  240f / (7f * (float)Math.PI * radius * radius);
+		float normDist = distance / radius;
+		Vector2 value = Vector2.Zero;
+		
+		if (distance > 1.0e-6f && normDist <= 1.0f) 
+	{
+  		Vector2 gradq = r / distance;
+		gradq /= radius;
+		
+		if (normDist <= 0.5f)
+		{
+			value = normalization * (3f * normDist- 2f) * gradq;
+		}
+		else
+		{
+			float factor = 1f - normDist;
+			value = normalization * (-factor * factor) * gradq;
+		}
+	}
+
+	return value;
+	}
+	
 	
 	float Density(Vector2 point)
 	{
@@ -74,6 +101,12 @@ public partial class Fluid : Node2D
 		}
 		return density;
 	}
+	
+	/*public static Vector2 Gradient(Vector2 point)
+	{
+		
+	}*/
+	
 	
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
