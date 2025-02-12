@@ -6,6 +6,9 @@
 [node name="Node2D" type="Node2D"]
 position = Vector2(551, 320)
 script = ExtResource("1_6f7li")
+gravity = 0.0
+smoothingRadius = 1.25
+pressureMultiplier = 48.675
 
 [node name="Node2D" type="Node2D" parent="."]
 script = ExtResource("2_x0u3x")

@@ -7,25 +7,28 @@ using System.Threading.Tasks;
 
 public partial class Fluid : Node2D
 {	
-	private float gravity = 98f;
-	private int particleCount = 200;
+	[Export(PropertyHint.Range, "-10,10,")] float gravity = 9.8f;
+	private int particleCount = 400;
 	private Vector2[] pPositions;
 	private Vector2[] pVelocities;
 	private Rect2 boundingBox;
 	private float boxMargin = .8f;
-	private int pSize = 5;
-	private int particleSpacing = 3;
-	private float damping = .95f;
+	private float pSize = 0.1f;
+	private float particleSpacing = 0.11f;
+	private float damping = .98f;
+	float boxWidth = 16f;
+	float boxHeight = 9f;
+
 	//approx 4x particle size
-	private float smoothingRadius = 20f;
-	private float mass = 1000f;
+	[Export(PropertyHint.Range, "0,20,")] float smoothingRadius = 1.2f;
+	[Export(PropertyHint.Range, "0,1000,")] float mass = .15f;
 	
 	private float[] densities;
 	private Vector2 densityPoint; 
 	private Label densityLabel;   
 	
-	private float targetDensity = 10f;
-	private float pressureMultiplier = 400f;
+	[Export(PropertyHint.Range, ".5,200,")] float targetDensity = 2.75f;
+	[Export(PropertyHint.Range, "0,300,")] float pressureMultiplier = 0.5f;
 	
 	
 	
@@ -41,14 +44,13 @@ public partial class Fluid : Node2D
 	public override void _Draw()
 	{
 		
-		DrawRect(boundingBox, Colors.White, false, 2);
+		DrawRect(boundingBox, Colors.White, false, (float).1f);
 		
 		for(int i = 0; i< pPositions.Length; i++){
 			
 			DrawCircle(pPositions[i], pSize, Predef.blue);
 		}
-		DrawCircle(densityPoint, 5, Colors.Red);
-		DrawCircle(densityPoint, smoothingRadius, new Color(1, 0, 0, 0.3f));
+		
 	}
 	public static float SmoothingKernel(float radius, float distance)
 	{
@@ -67,25 +69,17 @@ public partial class Fluid : Node2D
 	else {
 		value =  0;
 	}
-	return value;
+	return Math.Max(0, value);
 	
 	}
 	
 	public static Vector2 SmoothKernelGrad(float radius, Vector2 r)
 	{
 		float distance = r.Length();
-		const float epsilon = 1.0e-6f;
-	
-		if (distance < epsilon) {
-		// when particles are exactly on top of each other, generate a random direction
-   
-		float randomAngle = (float)(new Random().NextDouble() * 2 * Math.PI);
-		Vector2 randomDirection = new Vector2((float)Math.Cos(randomAngle), (float)Math.Sin(randomAngle));
-		return randomDirection; 
-		}
 		
 		
-		float normalization =  240f / (7f * (float)Math.PI * radius * radius);
+		float normalization =  240f / (7f * (float)Math.PI * radius * radius * radius);
+		//loat normalization = 1;
 		float normDist = distance / radius;
 		Vector2 value = Vector2.Zero;
 		
@@ -110,12 +104,36 @@ public partial class Fluid : Node2D
 	return value; //returning direction and magnitude
 	}
 	
+	float DensityToPressure(float density) {
+		//Tait Equation of State compute pressure
+		//float gamma = 2f;
+		//float pressure = ((float)Math.Pow(density / targetDensity, gamma) - 1) * pressureMultiplier * .01f;
+
+		float densityError = density - targetDensity;
+		
+		float pressure = densityError * pressureMultiplier;
+		
+		return Math.Max(pressure, 0);
+		
+	}
+	
+	float ComputeSharedPressure(float densityA, float densityB) 
+	{
+		float pressureA = DensityToPressure(densityA);
+		float pressureB = DensityToPressure(densityB);
+		
+		//if (densityA + densityB == 0) return 0;
+		
+		return (pressureA + pressureB) / 2;
+		
+	}
+	
 	
 	float Density(Vector2 point)
 	{
 		float density = 0;
 		
-		//density is a measure of a certain point
+		//density measure of a certain point
 		//iterate through all particles, and determine their in distance to that point, and influence at that location
 		//add to desnity by mass * influence
 		foreach (Vector2 position in pPositions) {
@@ -124,6 +142,14 @@ public partial class Fluid : Node2D
 			density += mass * influence;
 		}
 		return density;
+	}
+	
+	
+	public static Vector2 GetRandomDir()
+	{
+	Random random = new Random();
+	float angle = (float)(random.NextDouble() * 2 * Math.PI); // Random angle in radians
+	return new Vector2((float)Math.Cos(angle), (float)Math.Sin(angle));
 	}
 	
 	
@@ -136,16 +162,25 @@ public partial class Fluid : Node2D
 			if(particleIndex == i) continue;
 			
 			float distance = pPositions[i].DistanceTo(point);
+			
 			Vector2 r = pPositions[i] - point;
 			//unpacked magnitude and direction of smoothing kernel gradient
 			Vector2 gradW = SmoothKernelGrad(smoothingRadius, r);
+
+			float density_i = densities[particleIndex];
+			float density_j = densities[i];
+
+			//float pressure = DensityToPressure(density);
+			float sharedPressure = ComputeSharedPressure(density_i, density_j);
+			
+			if (density_i <= 0 || density_j <= 0) continue;
+			// Separate magnitude and direction
+			float magnitude = gradW.Length();
+			Vector2 direction = distance == 0 ? GetRandomDir() : gradW.Normalized();
 			
 			
+			pressureForce += mass * magnitude * direction * sharedPressure / density_j;
 			
-			float density = densities[i];
-			float pressure = DensityToPressure(density);
-			//GD.Print($"pressure: {pressure}");
-			pressureForce += mass * pressure / density * gradW;
 			
 		}
 		
@@ -177,27 +212,22 @@ public partial class Fluid : Node2D
 		
 		}
 		
-		// 
+		Camera2D camera = new Camera2D();
+		camera.Position = Vector2.Zero; // Centered at (0,0)
+		Vector2 baseZoom = new Vector2(GetViewport().GetVisibleRect().Size.X / boxWidth,
+							  GetViewport().GetVisibleRect().Size.Y / boxHeight);
+		camera.Zoom = baseZoom * boxMargin;
+		camera.MakeCurrent(); // Make it the active camera
+		AddChild(camera);
 		
 		//set dimensions of bounding box 
-		boundingBox = new Rect2(
-			(viewport.Position - (viewport.Size /2)) * boxMargin,
-			viewport.Size * boxMargin
-		);
+		boundingBox = new Rect2(-boxWidth / 2, -boxHeight / 2, boxWidth, boxHeight);
 		// Initialize density measurement point
 		densityPoint = new Vector2(0, 0); 
 		
 		//initialize densities
 		densities = new float[particleCount];
 
-		// Create UI Label to display density
-		densityLabel = new Label();
-		densityLabel.AddThemeFontSizeOverride("font_size", 24);
-		densityLabel.SetPosition(densityPoint + new Vector2(10, -20));
-		densityLabel.Modulate = Colors.White;
-		AddChild(densityLabel);
-		
-		
 	}
 	
 
@@ -207,7 +237,7 @@ public partial class Fluid : Node2D
 		
 		Parallel.For(0, particleCount, i => {
 			//simulating gravity
-			//pVelocities[i].Y += gravity * (float)delta;
+			pVelocities[i].Y += gravity * (float)delta;
 			//calculate densities
 			densities[i] = Density(pPositions[i]);
 			
@@ -220,27 +250,20 @@ public partial class Fluid : Node2D
 			//GD.Print($"pressureForce: {pressureForce}");
 			Vector2 pressureAcceleration = pressureForce / densities[i];
 			pVelocities[i] += pressureAcceleration * (float)delta;
+			//update positions
+			pPositions[i] += pVelocities[i] * (float)delta;
+			
 			}
 		);
 		
 		
 		Parallel.For(0, particleCount, i => {
-			//update positions
-			pPositions[i] += pVelocities[i] * (float)delta;
+			
 			
 			//resolve collisions
 			ResolveCollisions(ref pPositions[i], ref pVelocities[i]);
 			}
 		);
-		
-			
-			
-			
-		
-		
-		float densityValue = Density(densityPoint);
-		densityLabel.Text = $"ρ: {densityValue:F2}";
-		densityLabel.SetPosition(densityPoint + new Vector2(10, -20));
 		
 		QueueRedraw();
 	}
@@ -262,18 +285,6 @@ public partial class Fluid : Node2D
 	}
 	
 	
-	float DensityToPressure(float density) {
-		//Tait Equation of State compute pressure
-		float gamma = 7f;
-		float pressure = ((float)Math.Pow(density / targetDensity, gamma) - 1) * pressureMultiplier;
-		
-		
-		//float densityError = density - targetDensity;
-		
-		//float pressure = densityError * pressureMultiplier;
-		
-		return pressure;
-		
-	}
+	
 	
 }
