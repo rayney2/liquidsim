@@ -1,8 +1,7 @@
 using Godot;
-using System;
+using System; 
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
-
 
 
 public partial class Fluid : Node2D
@@ -29,6 +28,10 @@ public partial class Fluid : Node2D
 	
 	[Export(PropertyHint.Range, ".5,200,")] float targetDensity = 2.75f;
 	[Export(PropertyHint.Range, "0,300,")] float pressureMultiplier = 0.5f;
+	
+	private SpatialHashing spatialHash;
+	(int index, int hash, int key)[] spatialIndices;
+	int[] spatialOffsets;
 	
 	
 	
@@ -191,6 +194,9 @@ public partial class Fluid : Node2D
 	// Called when the node enters the scene tree for the first time.
 	public override void _Ready()
 	{
+		spatialHash = new SpatialHashing();
+		spatialIndices = new (int index, int hash, int key)[particleCount];
+		spatialOffsets = new int[particleCount];
 		//position node in center
 		Rect2 viewport = GetViewportRect();
 		Position = viewport.Size / 2;  
@@ -284,6 +290,20 @@ public partial class Fluid : Node2D
 		
 	}
 	
+	public void UpdateSpatialHash(Vector2[] points) {
+		
+		Parallel.For(0, points.Length, i =>
+		{
+			spatialOffsets[i] = particleCount;
+			(int x, int y) cell = spatialHash.GetCellCoord(points[i], smoothingRadius);
+			int hash = spatialHash.CellHash(cell.x, cell.y);
+			int cellKey = spatialHash.KeyFromHash(hash, particleCount);
+			spatialIndices[i] = (i, hash, cellKey);
+			
+		});
+		
+		
+	}
 	
 	
 	
